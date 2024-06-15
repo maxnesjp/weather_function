@@ -9,13 +9,14 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using System.Net.Http;
 using Newtonsoft.Json.Linq;
+using RestSharp;
 
 namespace metrics
 {
     public static class WeatherFunction
     {
         [FunctionName("weatherFunction")]
-        public static async Task<IActionResult> Run(
+        public static async Task<IActionResult> GetWeatherByCity(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequest req,
             ILogger log)
         {
@@ -42,6 +43,27 @@ namespace metrics
             var json = JObject.Parse(responseBody);
 
             return new JsonResult(json);
+        }
+
+        public static async Task<IActionResult> RegisterCustomer(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequest req,
+            ILogger log)
+        {
+            string email = req.Query["email"];
+            string city = req.Query["city"];
+            if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(city))
+            {
+                return new BadRequestObjectResult("Email or City is empty");
+            }
+            await CosmosDbHandler.CosmodDbIns(email, city);
+            return null;
+        }
+
+        public static async Task<IActionResult> SendEmail(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequest req,
+            ILogger log)
+        {
+            return null;
         }
     }
 }
