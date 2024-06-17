@@ -10,6 +10,7 @@ using Newtonsoft.Json;
 using System.Net.Http;
 using Newtonsoft.Json.Linq;
 using RestSharp;
+using System.Collections.Generic;
 
 namespace metrics
 {
@@ -17,10 +18,10 @@ namespace metrics
     {
         [FunctionName("weatherFunction")]
         public static async Task<IActionResult> GetWeatherByCity(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)] HttpRequest req,
             ILogger log)
         {
-            log.LogInformation("C# HTTP trigger function processed a request.");
+            log.LogInformation("Processing a request to get weather in a provided city.");
 
             string city = req.Query["city"];
             string API_KEY = Environment.GetEnvironmentVariable("API_KEY");
@@ -45,25 +46,76 @@ namespace metrics
             return new JsonResult(json);
         }
 
+        [FunctionName("RegisterCustomer")]
         public static async Task<IActionResult> RegisterCustomer(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequest req,
-            ILogger log)
+         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequest req,
+         ILogger log)
         {
+            log.LogInformation("Processing a request to register a customer.");
+
             string email = req.Query["email"];
             string city = req.Query["city"];
+
+            // If the method is POST, read the body
+            if (req.Method == "POST")
+            {
+                string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                dynamic data = JsonConvert.DeserializeObject(requestBody);
+                email = email ?? data?.email;
+                city = city ?? data?.city;
+            }
+
             if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(city))
             {
                 return new BadRequestObjectResult("Email or City is empty");
             }
-            await CosmosDbHandler.CosmodDbIns(email, city);
-            return null;
+
+            try
+            {
+                var dbsession = new CosmosDbHandler();
+                await dbsession.Initiate();
+                Customer addedCustomer = await dbsession.RegisterCustomer(email, city);
+
+                if (addedCustomer != null)
+                {
+                    return new OkObjectResult(addedCustomer);
+                }
+                else
+                {
+                    return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                }
+            }
+            catch (Exception ex)
+            {
+                log.LogError($"An error occurred: {ex.Message}");
+                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+            }
         }
 
-        public static async Task<IActionResult> SendEmail(
-            [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = null)] HttpRequest req,
-            ILogger log)
+        [FunctionName("GetCustomerEmails")]
+        public static async Task<IActionResult> GetCustomerEmails(
+                    [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)] HttpRequest req,
+                    ILogger log)
         {
-            return null;
+            try
+            {
+                var dbsession = new CosmosDbHandler();
+                await dbsession.Initiate();
+                List<Customer> customers = await dbsession.GetAllCustomers();
+                if (customers != null || customers.Count < 1)
+                {
+                    return new OkObjectResult(customers);
+                }
+                else
+                {
+                    return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+                }
+            }
+            catch (Exception ex)
+            {
+                log.LogError($"An error occurred: {ex.Message}");
+                return new StatusCodeResult(StatusCodes.Status500InternalServerError);
+            }
         }
     }
 }
