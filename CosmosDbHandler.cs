@@ -56,7 +56,6 @@ class CosmosDbHandler
     }
 
 
-
     public async Task<Customer> RegisterCustomer(string email, string city)
     {
         Customer existingCustomer = await this.GetCustomerByEmail(email);
