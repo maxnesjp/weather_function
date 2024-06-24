@@ -62,10 +62,24 @@ class CosmosDbHandler
 
         if (existingCustomer != null)
         {
+            Console.WriteLine($"Customer found: {existingCustomer.Email}, updating city to: {city}");
             existingCustomer.City = city;
-            var updatedCustomerResponse = await this.container.ReplaceItemAsync(existingCustomer, existingCustomer.Id);
-            Console.WriteLine("Updated Customer: [{0},{1}].\n \tBody is now: {2}\n", existingCustomer.Email, existingCustomer.City, updatedCustomerResponse.Resource);
-            return updatedCustomerResponse.Resource;
+            try
+            {
+                var updatedCustomerResponse = await this.container.ReplaceItemAsync(existingCustomer, existingCustomer.Id);
+                Console.WriteLine($"Updated Customer: [{existingCustomer.Email}, {existingCustomer.City}]. Body is now: {updatedCustomerResponse.Resource}");
+                return updatedCustomerResponse.Resource;
+            }
+            catch (CosmosException ex)
+            {
+                Console.WriteLine($"Failed to update customer. CosmosException: {ex}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unexpected error occurred while updating customer: {ex}");
+                throw;
+            }
         }
         else
         {
@@ -76,10 +90,22 @@ class CosmosDbHandler
                 Email = email,
                 City = city
             };
-
-            ItemResponse<Customer> newCustomerResponse = await this.container.CreateItemAsync(newCustomer);
-            Console.WriteLine("Created item in database with id: {0} Operation consumed {1} RUs.\n", newCustomerResponse.Resource.Id, newCustomerResponse.RequestCharge);
-            return newCustomerResponse.Resource;
+            try
+            {
+                ItemResponse<Customer> newCustomerResponse = await this.container.CreateItemAsync(newCustomer);
+                Console.WriteLine($"Created item in database with id: {newCustomerResponse.Resource.Id}. Operation consumed {newCustomerResponse.RequestCharge} RUs.\n");
+                return newCustomerResponse.Resource;
+            }
+            catch (CosmosException ex)
+            {
+                Console.WriteLine($"Failed to create new customer. CosmosException: {ex}");
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unexpected error occurred while creating new customer: {ex}");
+                throw;
+            }
         }
     }
 
@@ -107,15 +133,33 @@ class CosmosDbHandler
 
     private async Task<Customer> GetCustomerByEmail(string email)
     {
-        IOrderedQueryable<Customer> queryable = container.GetItemLinqQueryable<Customer>();
-        var matches = queryable.Where(p => p.Email == email);
-        using FeedIterator<Customer> linqFeed = matches.ToFeedIterator();
-        if (linqFeed.HasMoreResults)
+        try
         {
-            FeedResponse<Customer> response = await linqFeed.ReadNextAsync();
-            Customer firstCustomer = response.FirstOrDefault();
-            return firstCustomer;
+            IOrderedQueryable<Customer> queryable = container.GetItemLinqQueryable<Customer>();
+            var matches = queryable.Where(p => p.Email == email);
+            using FeedIterator<Customer> linqFeed = matches.ToFeedIterator();
+
+            while (linqFeed.HasMoreResults)
+            {
+                FeedResponse<Customer> response = await linqFeed.ReadNextAsync();
+                Customer firstCustomer = response.FirstOrDefault();
+                if (firstCustomer != null)
+                {
+                    return firstCustomer;
+                }
+            }
+            return null; // No matching customer found
         }
-        return null;
+        catch (CosmosException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+        {
+            Console.WriteLine($"Customer with email {email} not found. CosmosException: {ex}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"An error occurred while fetching the customer: {ex}");
+            throw;
+        }
     }
+
 }

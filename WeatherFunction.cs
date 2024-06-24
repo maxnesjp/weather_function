@@ -52,18 +52,14 @@ namespace metrics
          ILogger log)
         {
             log.LogInformation("Processing a request to register a customer.");
-
+            if (req.Method != "POST") return null;
             string email = req.Query["email"];
             string city = req.Query["city"];
 
-            // If the method is POST, read the body
-            if (req.Method == "POST")
-            {
-                string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-                dynamic data = JsonConvert.DeserializeObject(requestBody);
-                email = email ?? data?.email;
-                city = city ?? data?.city;
-            }
+            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            dynamic data = JsonConvert.DeserializeObject(requestBody);
+            email = email ?? data?.email;
+            city = city ?? data?.city;
 
             if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(city))
             {
