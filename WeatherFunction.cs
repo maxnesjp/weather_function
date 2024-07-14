@@ -88,8 +88,8 @@ namespace metrics
             }
         }
 
-        [FunctionName("GetCustomerEmails")]
-        public static async Task<IActionResult> GetCustomerEmails(
+        [FunctionName("GetCustomers")]
+        public static async Task<IActionResult> GetCustomers(
                     [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)] HttpRequest req,
                     ILogger log)
         {
